@@ -1,0 +1,263 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Request {
+  id              String        @id @default(cuid())
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  userId          String?
+  rawInput        String
+  domain          String        @default("OTHER")
+  urgency         String        @default("MEDIUM")
+  complexity      String        @default("MODERATE")
+  title           String?
+  summary         String?
+  status          RequestStatus @default(IDLE)
+  interpretResult String?
+  user            User?         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plan            Plan?
+  delegations     Delegation[]
+  actionLogs      ActionLog[]
+  executionRuns   ExecutionRun[]
+}
+
+model Plan {
+  id                   String    @id @default(cuid())
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+  totalSteps           Int
+  estimatedTotalEffort String?
+  deadline             DateTime?
+  planResult           String?
+  requestId            String    @unique
+  request              Request   @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  steps                Step[]
+  delegations          Delegation[]
+}
+
+model Step {
+  id            String    @id @default(cuid())
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  sequence      Int
+  action        String
+  detail        String?
+  actionType    StepActionType @default(USER_ONLY)
+  effort        String    @default("SHORT")
+  delegation    String    @default("USER_ONLY")
+  suggestedDate DateTime?
+  nextCheckAt   DateTime?
+  lastCheckedAt DateTime?
+  status        String    @default("PENDING")
+  dependencies  String?
+  planId        String
+  plan          Plan      @relation(fields: [planId], references: [id], onDelete: Cascade)
+  outcome       Outcome?
+  actionLogs    ActionLog[]
+  executionRunSteps ExecutionRunStep[]
+}
+
+model Outcome {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  result    String   @default("PENDING")
+  notes     String?
+  output    String?
+  stepId    String   @unique
+  step      Step     @relation(fields: [stepId], references: [id], onDelete: Cascade)
+}
+
+enum DelegationStatus {
+  PENDING
+  APPROVED
+  REVOKED
+  EXPIRED
+}
+
+enum RequestStatus {
+  IDLE
+  INTERPRETING
+  INTERPRETED
+  PLANNING
+  PLANNED
+  AWAITING_AUTHORITY
+  AUTHORIZED
+  DONE
+  BLOCKED
+  DEFERRED
+  ERROR
+}
+
+enum StepActionType {
+  USER_ONLY
+  DRAFT_EMAIL
+  CREATE_GMAIL_DRAFT
+}
+
+enum ExecutionRunStatus {
+  STARTED
+  SUCCEEDED
+  PARTIAL
+  FAILED
+}
+
+enum ExecutionStepStatus {
+  ATTEMPTED
+  SKIPPED
+  SUCCEEDED
+  FAILED
+}
+
+enum FailureReason {
+  SCOPE_DENIED
+  NOT_APPROVED
+  SCHEMA_VALIDATION
+  GMAIL_AUTH
+  GMAIL_API
+  LLM_ERROR
+  UNKNOWN
+}
+
+enum ActionType {
+  CREATED
+  UPDATED
+  STATUS_CHANGED
+  DELEGATION_GRANTED
+  DELEGATION_REVOKED
+  CONTEXT_USED
+  EXECUTION_ATTEMPTED
+  EXECUTION_SUCCEEDED
+  EXECUTION_FAILED
+  EXECUTION_SKIPPED
+  SYSTEM
+}
+
+enum NotificationType {
+  DUE_DIGEST
+}
+
+model Delegation {
+  id              String           @id @default(cuid())
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  status          DelegationStatus @default(PENDING)
+  scope           Json
+  approvedStepIds Json
+  userId          String?
+  requestId       String
+  planId          String?
+  user            User?            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  request         Request          @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  plan            Plan?            @relation(fields: [planId], references: [id], onDelete: Cascade)
+  actionLogs      ActionLog[]
+  executionRuns   ExecutionRun[]
+
+  @@index([userId])
+  @@index([requestId])
+  @@index([planId])
+}
+
+model ActionLog {
+  id             String      @id @default(cuid())
+  createdAt      DateTime    @default(now())
+  action         ActionType
+  message        String?
+  payloadPreview Json?
+  requestId      String
+  stepId         String?
+  delegationId   String?
+  request        Request     @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  step           Step?       @relation(fields: [stepId], references: [id], onDelete: SetNull)
+  delegation     Delegation? @relation(fields: [delegationId], references: [id], onDelete: SetNull)
+
+  @@index([requestId])
+  @@index([stepId])
+  @@index([delegationId])
+}
+
+model OAuthAccount {
+  id           String   @id @default(cuid())
+  provider     String
+  accessToken  String
+  refreshToken String?
+  scope        String?
+  tokenType    String?
+  expiresAt    DateTime?
+  email        String?
+  userId       String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  user         User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([provider])
+}
+
+model ExecutionRun {
+  id           String             @id @default(cuid())
+  userId       String?
+  requestId    String
+  delegationId String?
+  status       ExecutionRunStatus @default(STARTED)
+  startedAt    DateTime           @default(now())
+  finishedAt   DateTime?
+  summary      String?
+  error        String?
+  user         User?              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  request      Request            @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  delegation   Delegation?        @relation(fields: [delegationId], references: [id], onDelete: SetNull)
+  steps        ExecutionRunStep[]
+
+  @@index([userId])
+  @@index([requestId])
+  @@index([delegationId])
+}
+
+model ExecutionRunStep {
+  id             String              @id @default(cuid())
+  executionRunId String
+  stepId         String
+  status         ExecutionStepStatus
+  reason         FailureReason?
+  message        String?
+  executionRun   ExecutionRun        @relation(fields: [executionRunId], references: [id], onDelete: Cascade)
+  step           Step                @relation(fields: [stepId], references: [id], onDelete: Cascade)
+
+  @@index([executionRunId])
+  @@index([stepId])
+}
+
+model NotificationLog {
+  id             String           @id @default(cuid())
+  userId         String
+  type           NotificationType
+  sentAt         DateTime         @default(now())
+  dateBucket     String
+  payloadPreview Json?
+  user           User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, type, dateBucket])
+  @@index([userId])
+  @@index([dateBucket])
+}
+
+model User {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  email     String   @unique
+  name      String?
+  image     String?
+  hasSeenFirstWin Boolean @default(false)
+  requests  Request[]
+  delegations Delegation[]
+  executionRuns ExecutionRun[]
+  oauthAccounts OAuthAccount[]
+  notifications NotificationLog[]
+}
