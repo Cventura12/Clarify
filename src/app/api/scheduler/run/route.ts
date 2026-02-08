@@ -125,7 +125,10 @@ async function handleScheduler(req: Request) {
     );
   }
 
-  for (const [userId, items] of stepsByUser.entries()) {
+  const sendTasks: Array<Promise<void>> = [];
+
+  stepsByUser.forEach((items, userId) => {
+    sendTasks.push((async () => {
     const distinct = new Map<string, string>();
     for (const item of items) {
       if (!distinct.has(item.requestId)) distinct.set(item.requestId, item.title);
@@ -135,7 +138,7 @@ async function handleScheduler(req: Request) {
       title,
     }));
 
-    if (deduped.length === 0) continue;
+    if (deduped.length === 0) return;
 
     const existing = await prisma.notificationLog.findUnique({
       where: {
@@ -149,7 +152,7 @@ async function handleScheduler(req: Request) {
 
     if (existing) {
       skipped += 1;
-      continue;
+      return;
     }
 
     const user = await prisma.user.findUnique({
@@ -159,7 +162,7 @@ async function handleScheduler(req: Request) {
 
     if (!user?.email) {
       skipped += 1;
-      continue;
+      return;
     }
 
     const subject = `Clarify: ${deduped.length} items due`;
@@ -188,7 +191,10 @@ async function handleScheduler(req: Request) {
     });
 
     sent += 1;
-  }
+    })());
+  });
+
+  await Promise.all(sendTasks);
 
   return NextResponse.json(
     {
