@@ -1,12 +1,13 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db/client";
 import { getCurrentUser } from "@/lib/auth";
 
 const authorizeSchema = z.object({
   requestId: z.string().min(1),
   planId: z.string().min(1).optional(),
-  scope: z.record(z.any()).optional(),
+  scope: z.record(z.string(), z.unknown()).optional(),
   approvedStepIds: z.array(z.string().min(1)).optional(),
 });
 
@@ -37,9 +38,13 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Plan does not match request" }, { status: 400 });
     }
 
-    const scope = body.scope ?? { canDraftEmail: true, canCreateGmailDraft: false };
+    const scope = (body.scope ?? {
+      canDraftEmail: true,
+      canCreateGmailDraft: false,
+    }) as Prisma.InputJsonValue;
     const planStepIds = request.plan.steps.map((step) => step.id);
     const approvedStepIds = body.approvedStepIds ?? planStepIds;
+    const approvedStepIdsJson = approvedStepIds as Prisma.InputJsonValue;
 
     if (body.approvedStepIds) {
       const invalid = approvedStepIds.filter((id) => !planStepIds.includes(id));
@@ -53,7 +58,7 @@ export async function POST(req: Request) {
         data: {
           status: "APPROVED",
           scope,
-          approvedStepIds,
+          approvedStepIds: approvedStepIdsJson,
           userId: user.id,
           requestId: request.id,
           planId: request.plan?.id ?? null,

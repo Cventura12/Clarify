@@ -37,11 +37,17 @@ export default function RequestActions({
 
   const stepIds = useMemo(() => steps.map((step) => step.id), [steps]);
 
+  const stepIdsKey = useMemo(() => stepIds.join("|"), [stepIds]);
+  const stepIdsFromKey = useMemo(
+    () => (stepIdsKey ? stepIdsKey.split("|") : []),
+    [stepIdsKey]
+  );
+
   useEffect(() => {
-    if (stepIds.length > 0) {
-      setApprovedStepIds(stepIds);
+    if (stepIdsFromKey.length > 0) {
+      setApprovedStepIds(stepIdsFromKey);
     }
-  }, [stepIds.join("|")]);
+  }, [stepIdsFromKey]);
 
   const canGeneratePlan = !planId && !!task && (status === "INTERPRETED" || status === "PLANNING");
   const canAuthorize = !!planId && (status === "AWAITING_AUTHORITY" || status === "PLANNED");
