@@ -1,4 +1,4 @@
-import Anthropic from "@anthropic-ai/sdk";
+import OpenAI from "openai";
 
 export class LLMError extends Error {
   constructor(message: string) {
@@ -17,13 +17,13 @@ export class LLMParseError extends LLMError {
   }
 }
 
-let client: Anthropic | null = null;
+let client: OpenAI | null = null;
 
 const getClient = () => {
   if (client) return client;
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) throw new LLMError("ANTHROPIC_API_KEY is not set");
-  client = new Anthropic({ apiKey });
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) throw new LLMError("OPENAI_API_KEY is not set");
+  client = new OpenAI({ apiKey });
   return client;
 };
 
@@ -45,19 +45,15 @@ export async function callLLM<T>(options: {
   model?: string;
   maxTokens?: number;
 }): Promise<T> {
-  const anthropic = getClient();
-  const response = await anthropic.messages.create({
-    model: options.model ?? "claude-sonnet-4-20250514",
-    max_tokens: options.maxTokens ?? 2048,
-    system: options.systemPrompt,
-    messages: [{ role: "user", content: options.userMessage }],
+  const openai = getClient();
+  const response = await openai.responses.create({
+    model: options.model ?? "gpt-5.2",
+    instructions: options.systemPrompt,
+    input: options.userMessage,
+    max_output_tokens: options.maxTokens ?? 2048,
   });
 
-  const text = response.content
-    .filter((part) => part.type === "text")
-    .map((part) => part.text)
-    .join("\n")
-    .trim();
+  const text = response.output_text?.trim() ?? "";
 
   if (!text) throw new LLMError("LLM returned empty response");
 

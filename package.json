@@ -13,10 +13,10 @@
     "eval:engine": "dotenv -e .env.local -- node --loader ts-node/esm src/lib/evals/run.ts"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.73.0",
     "@prisma/client": "^6.19.2",
     "next": "14.2.35",
     "next-auth": "^4.24.13",
+    "openai": "^4.0.0",
     "react": "^18",
     "react-dom": "^18",
     "zod": "^4.3.6"
