@@ -10,7 +10,7 @@ export default function LoginPage() {
         <p className="text-sm text-gray-400">Sign in to access your requests.</p>
         <button
           className="rounded-lg bg-gray-100 px-5 py-2 text-sm font-semibold text-gray-900 hover:bg-white"
-          onClick={() => signIn("google")}
+          onClick={() => signIn("google", { callbackUrl: "/requests" })}
         >
           Sign in with Google
         </button>

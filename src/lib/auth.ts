@@ -1,39 +1,56 @@
 import { getServerSession } from "next-auth";
 import type { NextAuthOptions } from "next-auth";
+import { PrismaAdapter } from "@next-auth/prisma-adapter";
 import GoogleProvider from "next-auth/providers/google";
 import { prisma } from "@/lib/db/client";
 
+const safeLoggerMetadata = (metadata: unknown) => {
+  if (!metadata || typeof metadata !== "object") return undefined;
+  const meta = metadata as { name?: string; message?: string; stack?: string };
+  return {
+    name: meta.name,
+    message: meta.message,
+    stack: meta.stack,
+  };
+};
+
 export const authOptions: NextAuthOptions = {
+  adapter: PrismaAdapter(prisma),
   providers: [
     GoogleProvider({
       clientId: process.env.GOOGLE_CLIENT_ID ?? "",
       clientSecret: process.env.GOOGLE_CLIENT_SECRET ?? "",
     }),
   ],
-  session: { strategy: "jwt" },
+  session: { strategy: "database" },
+  pages: {
+    signIn: "/login",
+  },
   callbacks: {
-    async signIn({ user }) {
-      if (!user.email) return false;
-      await prisma.user.upsert({
-        where: { email: user.email },
-        update: { name: user.name ?? null, image: user.image ?? null },
-        create: { email: user.email, name: user.name ?? null, image: user.image ?? null },
+    async signIn({ user, account }) {
+      console.info("[auth][signIn]", {
+        provider: account?.provider ?? "unknown",
+        userId: user?.id ?? null,
+        email: user?.email ?? null,
       });
       return true;
     },
-    async jwt({ token }) {
-      if (!token.email) return token;
-      if (!token.userId) {
-        const dbUser = await prisma.user.findUnique({ where: { email: token.email as string } });
-        if (dbUser) token.userId = dbUser.id;
-      }
-      return token;
-    },
-    async session({ session, token }) {
-      if (session.user && token.userId) {
-        session.user.id = token.userId as string;
+    async session({ session, user }) {
+      if (session.user && user?.id) {
+        session.user.id = user.id;
       }
       return session;
+    },
+  },
+  logger: {
+    error(code, metadata) {
+      console.error("[auth][error]", code, safeLoggerMetadata(metadata));
+    },
+    warn(code) {
+      console.warn("[auth][warn]", code);
+    },
+    debug(code, metadata) {
+      console.debug("[auth][debug]", code, safeLoggerMetadata(metadata));
     },
   },
 };
