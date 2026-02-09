@@ -309,6 +309,14 @@ export default function Home() {
           <div className="text-xs uppercase tracking-wide text-gray-500">
             Status: <span className="text-gray-200">{requestStatus}</span>
           </div>
+          <div>
+            <a
+              className="inline-flex items-center rounded-lg border border-gray-700 px-3 py-1 text-xs font-semibold text-gray-200 hover:border-gray-500"
+              href="/login"
+            >
+              Sign in
+            </a>
+          </div>
         </header>
 
         <div className="space-y-3">
